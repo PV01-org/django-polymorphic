@@ -1,12 +1,11 @@
 """
 Seamless Polymorphic Inheritance for Django Models
 """
+
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models.fields.related import ForwardManyToOneDescriptor, ReverseOneToOneDescriptor
 from django.db.utils import DEFAULT_DB_ALIAS
-
-from polymorphic.compat import with_metaclass
 
 from .base import PolymorphicModelBase
 from .managers import PolymorphicManager
@@ -24,7 +23,7 @@ class PolymorphicTypeInvalid(RuntimeError):
     pass
 
 
-class PolymorphicModel(with_metaclass(PolymorphicModelBase, models.Model)):
+class PolymorphicModel(models.Model, metaclass=PolymorphicModelBase):
     """
     Abstract base class that provides polymorphic behaviour
     for any model directly or indirectly derived from it.
@@ -98,11 +97,9 @@ class PolymorphicModel(with_metaclass(PolymorphicModelBase, models.Model)):
         """
         if self.polymorphic_ctype_id is None:
             raise PolymorphicTypeUndefined(
-                (
-                    "The model {}#{} does not have a `polymorphic_ctype_id` value defined.\n"
-                    "If you created models outside polymorphic, e.g. through an import or migration, "
-                    "make sure the `polymorphic_ctype_id` field points to the ContentType ID of the model subclass."
-                ).format(self.__class__.__name__, self.pk)
+                f"The model {self.__class__.__name__}#{self.pk} does not have a `polymorphic_ctype_id` value defined.\n"
+                f"If you created models outside polymorphic, e.g. through an import or migration, "
+                f"make sure the `polymorphic_ctype_id` field points to the ContentType ID of the model subclass."
             )
 
         # the following line would be the easiest way to do this, but it produces sql queries
@@ -127,9 +124,7 @@ class PolymorphicModel(with_metaclass(PolymorphicModelBase, models.Model)):
             )
         ):
             raise PolymorphicTypeInvalid(
-                "ContentType {} for {} #{} does not point to a subclass!".format(
-                    self.polymorphic_ctype_id, model, self.pk
-                )
+                f"ContentType {self.polymorphic_ctype_id} for {model} #{self.pk} does not point to a subclass!"
             )
 
         return model
@@ -162,6 +157,10 @@ class PolymorphicModel(with_metaclass(PolymorphicModelBase, models.Model)):
         retrieve objects, then the complete object with it's real class/type
         and all fields may be retrieved with this method.
 
+        If the model of the object's actual type does not exist (i.e. its
+        ContentType is stale), this method raises a
+        :class:`~polymorphic.models.PolymorphicTypeInvalid` exception.
+
         .. note::
             Each method call executes one db query (if necessary).
             Use the :meth:`~polymorphic.managers.PolymorphicQuerySet.get_real_instances`
@@ -170,6 +169,11 @@ class PolymorphicModel(with_metaclass(PolymorphicModelBase, models.Model)):
         real_model = self.get_real_instance_class()
         if real_model == self.__class__:
             return self
+        if real_model is None:
+            raise PolymorphicTypeInvalid(
+                f"ContentType {self.polymorphic_ctype_id} for {self.__class__} "
+                f"#{self.pk} does not have a corresponding model!"
+            )
         return real_model.objects.db_manager(self._state.db).get(pk=self.pk)
 
     def __init__(self, *args, **kwargs):

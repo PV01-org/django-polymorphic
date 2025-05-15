@@ -189,6 +189,22 @@ class ModelWithMyManager2(ShowFieldTypeAndContent, Model2A):
     field4 = models.CharField(max_length=10)
 
 
+class ModelArticle(PolymorphicModel):
+    sales_points = models.IntegerField()
+
+
+class ModelPackage(ModelArticle):
+    name = models.CharField(max_length=100)
+
+
+class ModelComponent(ModelArticle):
+    name = models.CharField(max_length=100)
+
+
+class ModelOrderLine(models.Model):
+    articles = models.ManyToManyField(ModelArticle, related_name="orderline")
+
+
 class MROBase1(ShowFieldType, PolymorphicModel):
     objects = MyManager()
     field1 = models.CharField(max_length=10)  # needed as MyManager uses it
@@ -206,10 +222,7 @@ class MROBase3(models.Model):
 
 
 class MRODerived(MROBase2, MROBase3):
-    if django.VERSION < (3, 0):
-
-        class Meta:
-            manager_inheritance_from_future = True
+    pass
 
 
 class ParentModelWithManager(PolymorphicModel):
@@ -372,6 +385,7 @@ class ProxyModelB(ProxyModelBase):
 # class TestBadFieldModel(ShowFieldType, PolymorphicModel):
 #    instance_of = models.CharField(max_length=10)
 
+
 # validation error: "polymorphic.relatednameclash: Accessor for field 'polymorphic_ctype' clashes
 # with related field 'ContentType.relatednameclash_set'." (reported by Andrew Ingram)
 # fixed with related_name
@@ -401,7 +415,6 @@ class CustomPkInherit(CustomPkBase):
 
 
 class DateModel(PolymorphicModel):
-
     date = models.DateTimeField()
 
 
